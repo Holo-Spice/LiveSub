@@ -14,11 +14,16 @@ import tomllib
 from pathlib import Path
 from typing import Callable
 
-from .audio import FFmpegInput, PCMQueue, media_duration
+from .audio import FFmpegInput, PCMQueue, device_capture_format, media_duration
 from .models import Models
 from .pipeline import FastOfflinePipeline, Pipeline, PipelineFailure, Segmenter
 from .subtitles import SubtitleWriter
 from .translator import Translator, llama_environment
+
+# Shown next to the capture rate in the UI. The capture path is the same for every run: the device
+# is opened at its own rate and the one conversion to 16 kHz mono is anti-aliased and dithered, so
+# this is the highest quality the source device offers rather than a choice between presets.
+CAPTURE_QUALITY = "最高：设备原生采样率 + 高质量重采样"
 
 
 def arguments(argv=None):
@@ -303,7 +308,7 @@ def run_offline_fast(args, paths, pipeline: FastOfflinePipeline, stop_requested:
     return stop.is_set()
 
 
-def run_live(args, paths, pipeline, stop_requested: threading.Event | None = None, on_capture: Callable[[int], None] | None = None, poll: Callable[[], None] | None = None, on_status: Callable[[str], None] | None = None, on_listening: Callable[[dict], None] | None = None) -> bool:
+def run_live(args, paths, pipeline, stop_requested: threading.Event | None = None, on_capture: Callable[..., None] | None = None, poll: Callable[[], None] | None = None, on_status: Callable[[str], None] | None = None, on_listening: Callable[[dict], None] | None = None) -> bool:
     queue = PCMQueue()
     stop = stop_requested or threading.Event()
     finished = threading.Event()
@@ -327,7 +332,8 @@ def run_live(args, paths, pipeline, stop_requested: threading.Event | None = Non
         if timeout > 0 and waited >= timeout:
             raise PipelineFailure("no_speech", f"等待 {timeout:.0f} 秒仍未检测到语音；请确认所选设备正在播放声音，或增大等待时间后重试")
 
-    with FFmpegInput(paths["ffmpeg"], device=args.audio_device) as audio:
+    capture = device_capture_format(paths["ffmpeg"], args.audio_device)
+    with FFmpegInput(paths["ffmpeg"], device=args.audio_device, capture_format=capture) as audio:
         def on_interrupt(_signum, _frame):
             stop.set()
 
@@ -344,17 +350,27 @@ def run_live(args, paths, pipeline, stop_requested: threading.Event | None = Non
         cancel_worker.start()
 
         def produce():
+            reported = False
             try:
                 for block in audio.blocks():
                     if stop.is_set():
+                        # The request is seen on the next block, so the PCM already in hand is still
+                        # queued: stopping must not swallow the audio of the utterance in progress.
                         break
-                    if on_capture is not None:
-                        on_capture(block.start_sample + block.samples)
                     if not queue.put(block, timeout=1.0):
                         if not stop.is_set():
                             errors.append(PipelineFailure("audio_queue_overrun", f"audio_queue_overrun: subtitles are incomplete; peak backlog {queue.peak_backlog_seconds():.3f} seconds"))
                             stop.set()
                         break
+                    if on_capture is not None:
+                        # The capture format rides on the first block, so the UI can show the rate the
+                        # device was really opened with. It is never reported without audio: a capture
+                        # callback that fires before the first block is indistinguishable from a stall.
+                        if reported:
+                            on_capture(block.start_sample + block.samples)
+                        else:
+                            reported = True
+                            on_capture(block.start_sample + block.samples, capture.describe(), CAPTURE_QUALITY)
                 if not stop.is_set():
                     errors.append(PipelineFailure("ffmpeg", "live capture ended unexpectedly; subtitles are incomplete"))
             except Exception as exc:

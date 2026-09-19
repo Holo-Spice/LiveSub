@@ -2,12 +2,14 @@ import threading
 import time
 import io
 import json
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
-from subtitle_cli.audio import FFmpegInput, PCMBlock, PCMQueue, media_time
+from subtitle_cli.audio import BLOCK_SAMPLES, CaptureFormat, FFmpegInput, PCMBlock, PCMQueue, SAMPLE_RATE, capture_filter, device_capture_format, media_time
 from subtitle_cli.cli import StartupCancelled, arguments, configured_paths, run_live, run_task, startup_step
 from subtitle_cli.pipeline import Pipeline, PipelineFailure, map_sentences
 from subtitle_cli.models import configure_convolution_backend
@@ -82,8 +84,8 @@ def test_sentence_mapping_allows_zero_length_word_inside_valid_sentence():
     items = [{"text": "Oh", "start_time": 0.8, "end_time": 0.8}, {"text": "yeah", "start_time": 0.8, "end_time": 1.12}]
     result = map_sentences("Oh yeah", ["Oh yeah"], items, units)
     assert (result[0].start, result[0].end) == (0.8, 1.12)
-    with pytest.raises(PipelineFailure):
-        map_sentences("Oh", ["Oh"], items[:1], units)
+    collapsed = map_sentences("Oh", ["Oh"], items[:1], units)
+    assert (collapsed[0].start, collapsed[0].end) == (0.8, 0.8)
 
 
 @pytest.mark.parametrize("sentences,items", [(["a", "c"], aligned(["a", "b"])), (["a ", "b"], aligned(["a", "x"])), (["a ", "b"], [{"text": "a", "start_time": 1, "end_time": 2}, {"text": "b", "start_time": 1.5, "end_time": 3}])])
@@ -91,6 +93,147 @@ def test_sentence_mapping_rejects_mismatch(sentences, items):
     with pytest.raises(PipelineFailure) as error:
         map_sentences("a b", sentences, items, units)
     assert error.value.stage == "sentence_mapping"
+
+
+@pytest.fixture
+def run_dir():
+    """A scratch directory in the first place the process may actually create files.
+
+    `tmp_path` is unusable in this sandbox and a sandbox policy can also refuse a directory
+    created directly in the checkout, so the writable parent is discovered first and only the
+    files of this test are cleaned up afterwards.
+    """
+    probe = Path(tempfile.mkdtemp(prefix="livesub-test-"))
+    try:
+        (probe / ".writable").write_text("", encoding="utf-8")
+    except OSError:
+        shutil.rmtree(probe, ignore_errors=True)
+        probe = Path(tempfile.mkdtemp(prefix="livesub-test-", dir=Path.cwd()))
+    try:
+        yield probe
+    finally:
+        shutil.rmtree(probe, ignore_errors=True)
+
+
+class StubModels:
+    """The model surface `recognize_segment` uses, with the transcript and alignment fixed."""
+
+    def __init__(self, text, sentences, aligned):
+        self.text = text
+        self.sentences = sentences
+        self.aligned = aligned
+
+    def transcribe(self, _pcm, _source_lang):
+        return self.text, "Japanese"
+
+    def split(self, _text):
+        return list(self.sentences)
+
+    def align(self, _pcm, _text, _language):
+        return [dict(item) for item in self.aligned]
+
+    def alignment_units(self, text, _language):
+        return units(text)
+
+
+class StubTranslator:
+    def translate(self, text):
+        return f"[{text}]"
+
+
+def write_segment(directory, name, pcm, text, sentences, aligned):
+    """Run one utterance through the real chain and return the SRT text and diagnostics."""
+    output = directory / f"{name}.srt"
+    with SubtitleWriter(output) as writer:
+        pipeline = Pipeline(StubModels(text, sentences, aligned), StubTranslator(), writer, "ja", "7b", "gpu")
+        pipeline.start_sample = 0
+        pipeline.utterance = bytearray(pcm)
+        pipeline._commit(0.0)
+    return output.read_text(encoding="utf-8"), [json.loads(line) for line in output.with_suffix(".jsonl").read_text(encoding="utf-8").splitlines()]
+
+
+def test_alignment_overshoot_is_clamped_and_the_task_survives(run_dir):
+    """The reported failure: the aligner answers on an 80 ms grid, so a boundary sentence can end
+    one grid step past the utterance (`3.440s` over `3.422s`). That is quantisation, not a wrong
+    subtitle, so the cue is pulled onto the audio instead of ending the whole run."""
+    pcm = bytes(2 * 16_000)  # 1.000 s of captured speech
+    srt, records = write_segment(run_dir, "clamped", pcm, "あい", ["あい"], [{"text": "あい", "start_time": 0.0, "end_time": 1.018}])
+    assert "00:00:00,000 --> 00:00:01,000\n[あい]" in srt
+    clamped = [record for record in records if record.get("status") == "alignment_clamped"]
+    assert len(clamped) == 1
+    assert clamped[0]["alignment_end_seconds"] == 1.018 and clamped[0]["duration_seconds"] == 1.0
+    assert clamped[0]["trimmed_seconds"] == 0.018 and clamped[0]["sentences"] == 1
+    assert not [record for record in records if record.get("status") == "alignment_dropped"]
+
+
+def test_a_short_utterance_still_gets_its_clamped_subtitle(run_dir):
+    """512 samples is one VAD block: the clamp leaves 32 ms of cue, and anything at all that is
+    left must not be thrown away."""
+    srt, records = write_segment(run_dir, "short", bytes(1024), "あ", ["あ"], [{"text": "あ", "start_time": 0.0, "end_time": 0.05}])
+    assert "00:00:00,000 --> 00:00:00,032\n[あ]" in srt
+    assert [record["status"] for record in records if record.get("status") == "alignment_clamped"] == ["alignment_clamped"]
+
+
+def text_of(srt):
+    """Just the cue times and the text: the stub translation keeps the sentence's own space."""
+    lines = [line for line in srt.splitlines() if line and not line.isdigit()]
+    return " | ".join(lines)
+
+
+def test_a_tail_sentence_shorter_than_the_aligner_grid_is_dropped_not_fatal(run_dir):
+    """The reported failure: every word of the last sentence lands on one timestamp, so the mapping
+    saw `sentence has no positive alignment duration` and stopped the task after 96 subtitles. That
+    sentence has no time anywhere in the audio, so it is dropped and recorded — never given a time
+    that was not measured, and never allowed to end the run."""
+    aligned = [
+        {"text": "あ", "start_time": 0.0, "end_time": 0.5},
+        {"text": "い", "start_time": 0.5, "end_time": 1.0},
+        {"text": "う", "start_time": 1.0, "end_time": 1.0},
+    ]
+    srt, records = write_segment(run_dir, "tail", bytes(2 * 16_000), "あ い う", ["あ ", "い ", "う"], aligned)
+    assert text_of(srt) == "00:00:00,000 --> 00:00:00,500 | [あ ] | 00:00:00,500 --> 00:00:01,000 | [い ]"
+    clamped = [record for record in records if record.get("status") == "alignment_clamped"]
+    assert clamped and clamped[0]["untimed_sentences"] == 1 and clamped[0]["sentences"] == 2
+
+
+def test_an_utterance_without_a_single_timed_sentence_uses_the_audio_range(run_dir):
+    """A completely collapsed short utterance gets one coarse cue and does not stop the task."""
+    srt, records = write_segment(run_dir, "untimed", bytes(2 * 16_000), "あ", ["あ"], [{"text": "あ", "start_time": 0.5, "end_time": 0.5}])
+    assert "00:00:00,000 --> 00:00:01,000\n[あ]" in srt
+    assert [record["status"] for record in records if record.get("status") == "alignment_fallback"] == ["alignment_fallback"]
+
+
+def test_a_collapsed_sentence_does_not_overwrite_the_measured_ones(run_dir):
+    """The sentences the aligner did time keep exactly the times it gave them, in order; the one
+    without any time is dropped instead of being written over the gap between them."""
+    aligned = [
+        {"text": "あ", "start_time": 0.0, "end_time": 0.5},
+        {"text": "い", "start_time": 0.5, "end_time": 1.0},
+        {"text": "う", "start_time": 0.5, "end_time": 0.5},
+    ]
+    srt, records = write_segment(run_dir, "mixed", bytes(3 * 16_000), "あ い う", ["あ ", "い ", "う"], aligned)
+    assert text_of(srt) == "00:00:00,000 --> 00:00:00,500 | [あ ] | 00:00:00,500 --> 00:00:01,000 | [い ]"
+    clamped = [record for record in records if record.get("status") == "alignment_clamped"]
+    assert clamped and clamped[0]["untimed_sentences"] == 1 and clamped[0]["sentences"] == 2
+
+
+def test_an_utterance_with_only_untimed_sentences_uses_one_coarse_cue(run_dir):
+    """Multiple collapsed sentences are retained as one cue covering the captured utterance."""
+    aligned = [
+        {"text": "あ", "start_time": 0.0, "end_time": 0.0},
+        {"text": "い", "start_time": 0.0, "end_time": 0.0},
+    ]
+    srt, records = write_segment(run_dir, "untimed-all", bytes(2 * 16_000), "あ い", ["あ ", "い"], aligned)
+    assert "00:00:00,000 --> 00:00:01,000\n[あ い]" in srt
+    assert [record["status"] for record in records if record.get("status") == "alignment_fallback"] == ["alignment_fallback"]
+
+
+def test_a_large_alignment_overshoot_is_clamped_instead_of_stopping(run_dir):
+    """Even a large discrepancy is retained in diagnostics while subtitle generation continues."""
+    srt, records = write_segment(run_dir, "mismatch", bytes(2 * 16_000), "あい", ["あい"], [{"text": "あい", "start_time": 0.0, "end_time": 1.4}])
+    assert "00:00:00,000 --> 00:00:01,000\n[あい]" in srt
+    clamped = [record for record in records if record.get("status") == "alignment_clamped"]
+    assert clamped and clamped[0]["trimmed_seconds"] == 0.4
 
 
 def test_sample_time_and_srt(tmp_path):
@@ -332,6 +475,97 @@ def test_startup_progress_is_recorded_before_any_model_is_loaded(monkeypatch, tm
     assert records[-1]["stage"] == "preflight" and records[-1]["error"] == "synthetic stop"
 
 
+def test_live_capture_uses_the_device_native_rate_and_one_quality_conversion(monkeypatch):
+    """The reported request: capture at the highest quality the device offers.
+
+    The loopback device on this machine reports one pin format only, `ch= 2, bits=16, rate= 96000`.
+    Opening it at 16 kHz mono made the device filter do the conversion; the input must be opened at
+    the device's own rate instead, with the single conversion to 16 kHz mono done by our own
+    anti-aliased, dithered resampler.
+    """
+    listing = '[in#0 @ 000001] DirectShow audio only device options (from audio devices)\n[in#0 @ 000001]  Pin "Capture Virtual Audio Pin" (alternative pin name "1")\n[in#0 @ 000001]   ch= 2, bits=16, rate= 96000\n'
+    probed = {}
+
+    def fake_run(args, **kwargs):
+        probed["args"] = args
+        return type("Result", (), {"returncode": 0, "stdout": b"", "stderr": listing.encode("utf-8")})()
+
+    monkeypatch.setattr("subtitle_cli.audio.subprocess.run", fake_run)
+    assert device_capture_format(Path("ffmpeg.exe"), "virtual-audio-capturer") == CaptureFormat(96000, 2)
+    assert probed["args"][-1] == "audio=virtual-audio-capturer"
+
+    captured = {}
+
+    def fake_popen(args, **kwargs):
+        captured["args"] = args
+        return type("Process", (), {"poll": lambda self: None, "stdout": io.BytesIO(), "terminate": lambda self: None, "wait": lambda self, timeout=None: 0})()
+
+    monkeypatch.setattr("subtitle_cli.audio.subprocess.Popen", fake_popen)
+    FFmpegInput(Path("ffmpeg.exe"), device="virtual-audio-capturer", capture_format=CaptureFormat(96000, 2)).stop()
+    args = captured["args"]
+    # The device is asked for its own rate, never for the 16 kHz the models want.
+    assert args[args.index("-ar") + 1] == "96000" and args[args.index("-ac") + 1] == "2"
+    assert "16000" not in args[args.index("-ar") + 1]
+    assert args[args.index("-af") + 1] == capture_filter(96000, 2)
+    assert args[-3:] == ["-f", "s16le", "pipe:1"]
+
+
+def test_capture_filter_is_anti_aliased_and_low_frequency_clean():
+    """The whole band above 8 kHz folds back into the speech band if the decimation filter is
+    careless, and DC offset from a loopback device reads as speech energy to the VAD. Both are
+    pinned here so a later edit cannot quietly drop them, and SoXR stays out: this FFmpeg lists it
+    in `-h filter=aresample` but was built without it, which fails the entire filter graph."""
+    value = capture_filter(96000, 2)
+    assert value.startswith("highpass=f=20")
+    assert f"aresample={SAMPLE_RATE}" in value
+    assert "phase_shift=24" in value and "filter_size=256" in value and "cutoff=0.97" in value
+    assert "dither_method=" in value
+    assert "channel_layouts=mono" in value and "sample_fmts=s16" in value
+    assert "soxr" not in value
+
+
+def test_a_failed_probe_falls_back_to_a_format_every_device_accepts(monkeypatch):
+    """A probe that cannot read the device must never fail the task, and must not be mistaken for
+    "the device is 16 kHz": the fallback is a normal capture rate, and 16 kHz would put the device
+    back in charge of the conversion."""
+    def broken(*args, **kwargs):
+        raise OSError("no such device")
+
+    monkeypatch.setattr("subtitle_cli.audio.subprocess.run", broken)
+    assert device_capture_format(Path("ffmpeg.exe"), "missing") == CaptureFormat(48_000, 2)
+
+    def empty(*args, **kwargs):
+        return type("Result", (), {"returncode": 0, "stdout": b"", "stderr": b"[in#0] Could not find device\n"})()
+
+    monkeypatch.setattr("subtitle_cli.audio.subprocess.run", empty)
+    assert device_capture_format(Path("ffmpeg.exe"), "missing") == CaptureFormat(48_000, 2)
+
+
+def test_the_ui_is_told_the_rate_the_device_was_opened_with(monkeypatch):
+    """`采集中` is only useful if it also says what was captured. The bridge forwards the format the
+    CLI probed, so "is it capturing at full quality" is answerable from the window itself."""
+    seen = []
+
+    def fake_task(args, root, *, stop_requested, on_status, on_capture, on_subtitle, on_detail, poll, on_progress, on_listening):
+        # Twice the rate in samples: the second report is the one that proves the format travels
+        # with a normal every-second update, not only with the first one.
+        on_capture(0, "96000 Hz / 2 ch", "最高：设备原生采样率 + 高质量重采样")
+        on_capture(2 * SAMPLE_RATE)
+        return "stopped"
+
+    monkeypatch.setattr(ui_bridge, "run_task", fake_task)
+    output = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", output)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+    ui_bridge.main(["live", "--audio-device", "loopback", "--output", "out.srt"])
+    messages = [json.loads(line) for line in output.getvalue().splitlines()]
+    statuses = [message for message in messages if message["type"] == "status"]
+    assert statuses[0]["capture_format"] == "96000 Hz / 2 ch"
+    assert statuses[0]["capture_quality"].startswith("最高")
+    assert statuses[0]["captured_seconds"] == 0 and statuses[1]["captured_seconds"] == 2
+    assert statuses[1]["capture_format"] == "96000 Hz / 2 ch"
+
+
 def test_live_stop_drains_captured_blocks(monkeypatch):
     stop = threading.Event()
 
@@ -350,7 +584,10 @@ def test_live_stop_drains_captured_blocks(monkeypatch):
             self.process = FakeProcess()
 
         def blocks(self):
-            yield PCMBlock(0, bytes(1024))
+            # Enough PCM for the capture report to reach its first whole second, so a stop can be
+            # requested while the producer is genuinely mid-stream.
+            for start in range(0, 8 * BLOCK_SAMPLES, BLOCK_SAMPLES):
+                yield PCMBlock(start, bytes(BLOCK_SAMPLES * 2))
             while not stop.is_set():
                 time.sleep(0.001)
 
@@ -377,7 +614,7 @@ def test_live_stop_drains_captured_blocks(monkeypatch):
     monkeypatch.setattr("subtitle_cli.cli.FFmpegInput", FakeAudio)
     pipeline = FakePipeline()
     args = type("Args", (), {"audio_device": "loopback"})()
-    result = run_live(args, {"ffmpeg": Path("fake.exe")}, pipeline, stop, lambda _: stop.set())
+    result = run_live(args, {"ffmpeg": Path("fake.exe")}, pipeline, stop, lambda *_args: stop.set())
     assert result is True
     assert len(pipeline.blocks) == 1 and pipeline.finished
 
@@ -618,4 +855,3 @@ def test_hotwords_reach_the_model_constructor_from_the_command_line(monkeypatch,
         run_task(args, tmp_path)
     assert seen == ["人名：张三"]
     assert arguments(["offline", "--input", "v", "--output", "o.srt"]).hotwords == ""
-

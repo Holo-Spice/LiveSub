@@ -49,6 +49,8 @@ public partial class SubtitleView : UserControl
     private bool _startupEnded;
     private int _saved;
     private long _capturedSeconds;
+    /// <summary>The rate the CLI opened the capture device with, e.g. "96000 Hz / 2 ch".</summary>
+    private string _captureSuffix = "";
     private long _latestMediaMs;
     private bool _busy;
     private bool _stopping;
@@ -298,6 +300,7 @@ public partial class SubtitleView : UserControl
         if (!ActionButton.IsEnabled) return;
         _saved = 0;
         _capturedSeconds = 0;
+        _captureSuffix = "";
         _latestMediaMs = 0;
         _rows.Clear();
         _stage = "";
@@ -429,10 +432,20 @@ public partial class SubtitleView : UserControl
             }
             else if (message.Type == "status" && !_stopping)
             {
+                // The capture rate arrives with the first block, before any subtitle exists, so the
+                // detail line can name the real device format instead of an assumed one.
+                if (message.CaptureFormat is not null)
+                {
+                    _captureSuffix = $"  |  采集 {message.CaptureFormat}";
+                    if (TaskStatus.Text == "采集中" || message.CapturedSeconds is not null)
+                    {
+                        TaskDetail.Text = $"采集时长 {TimeSpan.FromSeconds(_capturedSeconds):hh\\:mm\\:ss}  |  已保存 {_saved} 条{_captureSuffix}";
+                    }
+                }
                 if (message.CapturedSeconds is int seconds)
                 {
                     _capturedSeconds = seconds;
-                    TaskDetail.Text = $"采集时长 {TimeSpan.FromSeconds(seconds):hh\\:mm\\:ss}  |  已保存 {_saved} 条";
+                    TaskDetail.Text = $"采集时长 {TimeSpan.FromSeconds(seconds):hh\\:mm\\:ss}  |  已保存 {_saved} 条{_captureSuffix}";
                     StartupBar.Visibility = Visibility.Collapsed;
                 }
                 if (message.Seconds is double spent) _loadStepSeconds = spent;

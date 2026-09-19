@@ -14,13 +14,14 @@ namespace LiveSub.Launcher;
 /// Three things have to be true at the same time and they are all handled here:
 ///
 /// * The caption must not steal a click from the application the user is working in. Only the
-///   thin bar at the top is part of hit testing (<c>WM_NCHITTEST</c> answers <c>HTCAPTION</c>
+///   thin bar at the top is part of hit testing (<c>WM_NCHITTEST</c> answers <c>HTCLIENT</c>
 ///   there and <c>HTTRANSPARENT</c> everywhere else). The whole-window
 ///   <c>WS_EX_TRANSPARENT</c> style that used to do this also swallowed the window's own mouse
-///   messages, which is why the drag bar could not be grabbed at all.
-/// * The bar drags the window. With the bar answering <c>HTCAPTION</c> the window manager does
-///   the dragging, so no mouse capture, no activation and no coordinate arithmetic of ours is
-///   involved.
+///   messages, which is why the drag bar could not be grabbed at all, and a caption area
+///   (<c>HTCAPTION</c>) turned out to swallow the right click, which is why the menu could not
+///   open. The click on the bar is answered here instead.
+/// * The bar drags the window, and a right click on it opens the menu. Both come from the same
+///   ordinary client-area hit test, which is what makes the two work at once.
 /// * The strip can be made see-through. The background and the text have separate opacity
 ///   sliders in the right-click menu, because how much black is needed depends on the video
 ///   behind the subtitle and cannot be guessed here.
@@ -34,18 +35,22 @@ public partial class SubtitleOverlayWindow : Window
 {
     private const int GwlExstyle = -20;
     private const int WsExLayered = 0x00080000;
-    private const int WsExNoActivate = 0x08000000;
     private const int WsExToolWindow = 0x00000080;
 
     /// <summary>
-    /// Hit testing. The drag bar reports as a caption, so the window manager drags the window;
-    /// everywhere else reports transparent, so the click belongs to the window below.
+    /// Hit testing. Only the bar at the top is part of the window: everywhere else answers
+    /// <c>HTTRANSPARENT</c>, so the click belongs to the application underneath. The bar answers
+    /// <c>HTCAPTION</c> so the window manager drags the strip - and because it is a caption, the
+    /// right click has to be turned into the overlay's own menu by hand: the system would use it
+    /// for the title-bar menu instead.
     /// </summary>
     private const int WmNchittest = 0x0084;
+    private const int WmMouseactivate = 0x0021;
+    private const int WmNcrbuttonup = 0x00A5;
+    private const int WmExitsizemove = 0x0232;
     private const int HtTransparent = -1;
     private const int HtCaption = 2;
-
-    private const int WmExitsizemove = 0x0232;
+    private const int MaNoactivate = 3;
     private const string ReadyHint = "LiveSub 悬浮字幕 · 拖动此处移动位置（右键菜单）";
     private const string WaitingHint = "LiveSub 悬浮字幕 · 等待语音";
 
@@ -124,9 +129,23 @@ public partial class SubtitleOverlayWindow : Window
 
     public double TextOpacity => _textOpacity;
 
+    /// <summary>True while the overlay's own menu is open, for the self-check.</summary>
+    public bool MenuOpen => Shell.ContextMenu?.IsOpen == true;
+
     public void SetBackgroundOpacity(double value) => BackgroundSlider.Value = Math.Clamp(value, 0, 1) * 100;
 
     public void SetTextOpacity(double value) => TextSlider.Value = Math.Clamp(value, MinTextOpacity, 1) * 100;
+
+    /// <summary>
+    /// Puts the strip back to its default place and writes that out. The self-check drags the
+    /// window around and must not leave that place behind for the next start.
+    /// </summary>
+    public void ResetPlacement()
+    {
+        _placed = false;
+        CenterNearBottom();
+        SaveState();
+    }
 
     private void OnTick()
     {
@@ -151,6 +170,9 @@ public partial class SubtitleOverlayWindow : Window
     /// </summary>
     private void Restore()
     {
+        // The width limit has to be applied before anything is placed: at 200% the default width
+        // is wider than the whole screen, and a strip that wide has no place to go.
+        CapWidth();
         var parts = ReadState();
         if (parts.Length >= 2
             && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double left)
@@ -167,8 +189,20 @@ public partial class SubtitleOverlayWindow : Window
         if (!_placed) CenterNearBottom();
     }
 
-    private string[] ReadState()
+    /// <summary>
+    /// Keeps the strip narrow enough to fit the screen it is about to appear on: the default
+    /// width is chosen for a normal desktop, but a screen smaller than that must not get a strip
+    /// whose ends - and whose drag bar - are off the display.
+    /// </summary>
+    private void CapWidth()
     {
+        var area = SystemParameters.WorkArea;
+        double limit = Math.Max(400, area.Width - 80);
+        if (Width > limit) Width = limit;
+        MaxWidth = Math.Max(Width, limit);
+    }
+
+    private string[] ReadState()    {
         try
         {
             return File.Exists(_stateFile) ? File.ReadAllText(_stateFile).Split(',') : [];
@@ -192,6 +226,7 @@ public partial class SubtitleOverlayWindow : Window
     private void CenterNearBottom()
     {
         var area = SystemParameters.WorkArea;
+        CapWidth();
         UpdateLayout();
         double width = ActualWidth > 0 ? ActualWidth : Width;
         double height = ActualHeight > 0 ? ActualHeight : 120;
@@ -200,13 +235,21 @@ public partial class SubtitleOverlayWindow : Window
         MoveTo(Left, Top);
     }
 
-    /// <summary>Keeps a dragged or restored window reachable: the bar always stays on screen.</summary>
+    /// <summary>
+    /// Keeps a dragged or restored window reachable: the whole strip stays inside the work area,
+    /// so its bar can always be grabbed again. The work area and the window are both in the same
+    /// units here - the window's own -, which is what the check for "does it still fit" has to
+    /// use.
+    /// </summary>
     private void MoveTo(double left, double top)
     {
         var area = SystemParameters.WorkArea;
         double width = ActualWidth > 0 ? ActualWidth : Width;
-        Left = Math.Min(Math.Max(left, area.Left - width + 160), area.Left + area.Width - 120);
-        Top = Math.Min(Math.Max(top, area.Top), area.Top + Math.Max(0, area.Height - 40));
+        double height = ActualHeight > 0 ? ActualHeight : 120;
+        left = Math.Min(left, area.Right - width);
+        top = Math.Min(top, area.Bottom - height);
+        Left = Math.Max(area.Left, left);
+        Top = Math.Max(area.Top, top);
     }
 
     /// <summary>Writes the place and the opacities together, so neither can be lost.</summary>
@@ -271,10 +314,13 @@ public partial class SubtitleOverlayWindow : Window
         base.OnSourceInitialized(e);
         var handle = new WindowInteropHelper(this).Handle;
         if (handle == IntPtr.Zero) return;
-        // Deliberately not WS_EX_TRANSPARENT: that style would make the whole window - the drag
-        // bar included - invisible to the mouse. Hit testing is answered per region instead.
+        // Deliberately not WS_EX_TRANSPARENT (it would make the whole window - the drag bar
+        // included - invisible to the mouse) and deliberately not WS_EX_NOACTIVATE either: a
+        // window with that style receives no mouse input at all, which is what made the drag bar
+        // and the right click do nothing. Staying out of the way is done with WM_MOUSEACTIVATE
+        // below instead, which leaves the input alone.
         long style = GetWindowLongPtr(handle, GwlExstyle).ToInt64();
-        style |= WsExLayered | WsExNoActivate | WsExToolWindow;
+        style |= WsExLayered | WsExToolWindow;
         SetWindowLongPtr(handle, GwlExstyle, new IntPtr(style));
         HwndSource.FromHwnd(handle)?.AddHook(Hook);
     }
@@ -286,6 +332,22 @@ public partial class SubtitleOverlayWindow : Window
             handled = true;
             return new IntPtr(HitTest(lParam));
         }
+        if (message == WmMouseactivate)
+        {
+            // The strip never takes focus, so dragging it or opening its menu never pulls the
+            // keyboard away from the application the user is typing in.
+            handled = true;
+            return new IntPtr(MaNoactivate);
+        }
+        if (message == WmNcrbuttonup)
+        {
+            // The bar is a caption area, so the right click arrives as a non-client message and
+            // the system would open its own window menu with it. It opens the overlay's menu
+            // instead, which is the whole point of right clicking the strip.
+            handled = true;
+            OpenMenu(lParam);
+            return IntPtr.Zero;
+        }
         if (message == WmExitsizemove)
         {
             SaveState();
@@ -293,8 +355,22 @@ public partial class SubtitleOverlayWindow : Window
         return IntPtr.Zero;
     }
 
+    /// <summary>Opens the right-click menu under the point the user right clicked.</summary>
+    private void OpenMenu(IntPtr lParam)
+    {
+        var menu = Shell.ContextMenu;
+        if (menu is null) return;
+        int packed = unchecked((int)lParam.ToInt64());
+        var point = PointFromScreen(new Point(unchecked((short)(packed & 0xFFFF)), unchecked((short)((packed >> 16) & 0xFFFF))));
+        menu.PlacementTarget = Shell;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.RelativePoint;
+        menu.HorizontalOffset = point.X;
+        menu.VerticalOffset = point.Y;
+        menu.IsOpen = true;
+    }
+
     /// <summary>
-    /// The bar answers as a caption so the window manager drags the window; everything else
+    /// The bar answers as a caption so the window manager drags the window; anything else
     /// answers as transparent so the click goes to the application underneath.
     /// </summary>
     private int HitTest(IntPtr lParam)

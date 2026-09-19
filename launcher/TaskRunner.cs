@@ -27,7 +27,9 @@ internal sealed record UiMessage(
     int? SegmentsOpen = null,
     double? WaitSeconds = null,
     double? TimeoutSeconds = null,
-    double? RemainingSeconds = null);
+    double? RemainingSeconds = null,
+    string? CaptureFormat = null,
+    string? CaptureQuality = null);
 internal sealed record TaskOutcome(string Result, string Message, string? Stage = null);
 
 internal sealed class TaskRunner
@@ -213,7 +215,7 @@ internal sealed class TaskRunner
             // A status carries either a new stage, or one item inside the model load. The
             // detail-only form leaves the stage label the UI already shows untouched, so a
             // slow start can report progress without inventing a new stage name.
-            "status" when String("stage") is not null => new(type, Stage: String("stage"), CapturedSeconds: Int("captured_seconds"), Detail: String("detail"), Seconds: Double("seconds")),
+            "status" when String("stage") is not null => new(type, Stage: String("stage"), CapturedSeconds: Int("captured_seconds"), Detail: String("detail"), Seconds: Double("seconds"), CaptureFormat: String("capture_format"), CaptureQuality: String("capture_quality")),
             "status" when String("detail") is not null => new(type, Detail: String("detail"), Seconds: Double("seconds")),
             "status" => throw new FormatException("缺少阶段。"),
             // Offline progress: measured audio seconds against the length of the file, plus

@@ -13,6 +13,7 @@ models/
 outputs/
 testdata/*
 !testdata/calibration-two-sentences-pts2s.mkv
+.tmp-bench/
 .setup/
 *.gguf
 *.safetensors
@@ -25,6 +26,7 @@ tools/downloads/
 tools/ffmpeg/
 tools/llama.cpp-*/
 tools/rocm-*/
+tools/_burn_status.txt
 
 # .NET build and release artifacts
 launcher/bin/

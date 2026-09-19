@@ -36,13 +36,15 @@
             </ContextMenu>
         </Border.ContextMenu>
         <DockPanel>
-            <!-- The bar is the only part of the overlay that answers the mouse. It reports as a
-                 window caption (WM_NCHITTEST in the code-behind), so the window manager drags
-                 the whole strip while the caption area below stays click-through and never
-                 steals a click from the application the user is actually working in. -->
+            <!-- The bar is the only part of the overlay that answers the mouse: everywhere else
+                 WM_NCHITTEST answers HTTRANSPARENT, so a click belongs to the application the
+                 user is working in. The bar answers HTCAPTION, which makes the window manager
+                 drag the whole strip; because that also turns a right click into a non-client
+                 message, the code-behind answers WM_NCRBUTTONUP by opening the overlay's own
+                 menu - the menu the bar advertises. -->
             <Border x:Name="DragBar" DockPanel.Dock="Top" Height="20" CornerRadius="10,10,0,0" Background="#33FFFFFF"
                     Cursor="SizeAll" ToolTip="按住拖动可移动位置；右键菜单可调透明度">
-                <TextBlock x:Name="BarHint" Text="LiveSub 悬浮字幕 · 拖动此处移动位置（右键菜单）" FontSize="10" Foreground="#CCFFFFFF"
+                <TextBlock x:Name="BarHint" Text="LiveSub 悬浮字幕 · 拖动此处移动位置（右键菜单）" FontSize="11" Foreground="#E6FFFFFF"
                            HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <TextBlock x:Name="Caption" Margin="22,10,22,14" FontSize="34" FontWeight="SemiBold"

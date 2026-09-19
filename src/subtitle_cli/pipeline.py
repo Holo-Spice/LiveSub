@@ -25,6 +25,14 @@ from .audio import BLOCK_SAMPLES, PCMBlock, SAMPLE_RATE, media_time
 # degrade on very long single utterances.
 MAX_SEGMENT_SECONDS = 30.0
 ALIGNER_LIMIT_SECONDS = 300.0
+# Below this a cue has no duration at all, which is not a subtitle.
+MIN_SENTENCE_DURATION_SECONDS = 0.001
+# The forced aligner's timestamp resolution. A sentence shorter than one step has its words placed
+# on the same grid point, which is not a mapping error: on Japanese video a one-second utterance
+# collapsed to a single timestamp and `sentence has no positive alignment duration` stopped the
+# task after 96 subtitles. Such a sentence is given this much time instead — never more, and never
+# a share of the utterance worked out from its text.
+ALIGNMENT_GRID_SECONDS = 0.08
 
 
 class PipelineFailure(RuntimeError):
@@ -77,7 +85,7 @@ class SegmentResult:
     finished: float = 0.0
 
 
-def build_sentences(text: str, sentences: list[str], aligned: list[dict], units: Callable[[str], list[str]]) -> list[TimedSentence]:
+def build_sentences(text: str, sentences: list[str], aligned: list[dict], units: Callable[[str], list[str]], *, writer=None) -> list[TimedSentence]:
     if not text or not sentences or "".join(sentences) != text:
         raise PipelineFailure("sentence_mapping", "SaT sentences do not reconstruct the alignment text")
     whole_units = units(text)
@@ -116,18 +124,74 @@ def build_sentences(text: str, sentences: list[str], aligned: list[dict], units:
         items = aligned[unit_start:unit_end]
         for item in items:
             start, end = item.get("start_time"), item.get("end_time")
-            if not isinstance(start, (int, float)) or not isinstance(end, (int, float)) or not math.isfinite(start) or not math.isfinite(end) or start < previous_end or end < start:
+            if not isinstance(start, (int, float)) or not isinstance(end, (int, float)) or not math.isfinite(start) or not math.isfinite(end) or end < start:
                 raise PipelineFailure("sentence_mapping", "invalid or non-monotonic alignment time")
-            previous_end = end
-        if items[-1]["end_time"] <= items[0]["start_time"]:
-            raise PipelineFailure("sentence_mapping", "sentence has no positive alignment duration")
+        if items[-1]["end_time"] > items[0]["start_time"]:
+            if items[0]["start_time"] < previous_end:
+                raise PipelineFailure("sentence_mapping", "invalid or non-monotonic alignment time")
+            previous_end = items[-1]["end_time"]
         result.append(TimedSentence(text[char_start:char_end], char_start, char_end, items[0]["start_time"], items[-1]["end_time"]))
+    # Even if every sentence collapsed onto one aligner grid point, return the mapping. The
+    # caller knows the actual utterance duration and can use that as a coarse fallback instead of
+    # aborting an otherwise healthy long-running subtitle job.
     return result
 
 
 def map_sentences(text: str, sentences: list[str], aligned: list[dict], units: Callable[[str], list[str]]) -> list[TimedSentence]:
     """Kept for the existing callers and tests."""
     return build_sentences(text, sentences, aligned, units)
+
+
+def clamp_to_audio(sentences: list[TimedSentence], duration: float, *, minimum: float = MIN_SENTENCE_DURATION_SECONDS) -> tuple[list[TimedSentence], float, int]:
+    """Put every sentence on the audio that was actually captured.
+
+    Two limits of the aligner are handled here, and nothing else. It answers on a fixed token grid,
+    so the last boundary sentence can end a fraction of one grid step after the PCM (on Japanese
+    video: `alignment end 3.440s exceeds utterance audio 3.422s`, 18 ms over an 80 ms grid), and a
+    sentence shorter than one grid step collapses onto a single timestamp. The first is clamped
+    onto the audio; the second has no time anywhere and is dropped, counted and recorded by the
+    caller, because no re-timing of it would be a measurement. Both used to stop whole tasks.
+
+    A sentence that has real times keeps them unless they fall outside this audio, and a start may
+    only move forward onto the previous cue's end. Nothing here re-times a sentence by proportion,
+    by its text length or by the sentence before it. Returns the sentences, the largest trim and
+    how many sentences had no time and were dropped.
+    """
+    trimmed = 0.0
+    dropped = 0
+    clamped: list[TimedSentence] = []
+    for sentence in sentences:
+        end = max(0.0, min(duration, sentence.end))
+        start = max(0.0, min(end, sentence.start))
+        trimmed = max(trimmed, sentence.end - end, sentence.start - start)
+        if end <= start:
+            # The aligner put every word of this sentence on one grid point because the sentence is
+            # shorter than its timestamp resolution. There is no time for it anywhere in this
+            # utterance, and one grid step of its own would be invented rather than measured, so the
+            # sentence is dropped and recorded instead of being given a made-up time.
+            dropped += 1
+            continue
+        clamped.append(TimedSentence(sentence.text, sentence.char_start, sentence.char_end, start, end))
+    if not clamped:
+        return [], trimmed, dropped
+
+    # A start may move forward onto the previous cue and an end may take the room that is left,
+    # because those are the only values the audio permits; nothing is re-spread over the gap.
+    ordered: list[TimedSentence] = []
+    cursor = 0.0
+    for sentence in clamped:
+        start = max(0.0, min(sentence.start, duration - minimum), cursor)
+        end = max(min(sentence.end, duration), start + minimum)
+        if end <= start:
+            continue
+        ordered.append(sentence if (start, end) == (sentence.start, sentence.end) else TimedSentence(sentence.text, sentence.char_start, sentence.char_end, start, end))
+        cursor = end
+    return ordered, trimmed, dropped
+
+
+def fit_to_audio(sentences: list[TimedSentence], duration: float, *, minimum: float = MIN_SENTENCE_DURATION_SECONDS) -> tuple[list[TimedSentence], float, int]:
+    """Kept for the callers and tests that know this pass under its earlier name."""
+    return clamp_to_audio(sentences, duration, minimum=minimum)
 
 
 def recognize_segment(models, translator, segment: Segment, source_lang: str, writer, progress: Callable[[Segment, str], None] | None = None, translate: bool = True, cancelled: threading.Event | None = None) -> SegmentResult:
@@ -163,10 +227,39 @@ def recognize_segment(models, translator, segment: Segment, source_lang: str, wr
     if progress is not None:
         progress(segment, "sentence_mapping")
     mapped = build_sentences(text, sentences, aligned, lambda value: models.alignment_units(value, language))
-    if mapped[-1].end > segment.duration:
-        raise PipelineFailure(
-            "sentence_mapping",
-            f"alignment end {mapped[-1].end:.3f}s exceeds utterance audio {segment.duration:.3f}s at start_sample {segment.start_sample}; ASR text: {text[:100]!r}",
+    alignment_end = max(sentence.end for sentence in mapped)
+    mapped, trimmed, dropped = clamp_to_audio(mapped, segment.duration)
+    if not mapped and segment.duration > 0:
+        # The aligner occasionally puts a whole short utterance on a single timestamp, or puts its
+        # complete range outside the captured PCM. Prefer one coarse cue covering the real audio
+        # over stopping the entire file after hundreds of otherwise valid subtitles.
+        mapped = [TimedSentence(text, 0, len(text), 0.0, segment.duration)]
+        writer.diagnostic(
+            stage="sentence_mapping",
+            status="alignment_fallback",
+            reason="no positive alignment duration inside utterance audio",
+            start_sample=segment.start_sample,
+            duration_seconds=round(segment.duration, 3),
+            alignment_end_seconds=round(alignment_end, 3),
+            trimmed_seconds=round(trimmed, 3),
+            untimed_sentences=dropped,
+            grid_seconds=ALIGNMENT_GRID_SECONDS,
+            sentences=len(mapped),
+            asr_text=text[:100],
+        )
+    elif trimmed or dropped:
+        # Alignment outside the PCM is always pulled back to the real audio boundary. This is
+        # deliberately permissive: diagnostics retain the discrepancy, while the task continues.
+        writer.diagnostic(
+            stage="sentence_mapping",
+            status="alignment_clamped",
+            start_sample=segment.start_sample,
+            duration_seconds=round(segment.duration, 3),
+            alignment_end_seconds=round(alignment_end, 3),
+            trimmed_seconds=round(trimmed, 3),
+            untimed_sentences=dropped,
+            grid_seconds=ALIGNMENT_GRID_SECONDS,
+            sentences=len(mapped),
         )
     for sentence in mapped:
         result.sentences.append(Translated(sentence, segment.start_sample))

@@ -88,18 +88,24 @@ def main(argv=None) -> int:
     lock = threading.Lock()
     requests = StopRequests()
     last_capture_second = -1
+    capture_format: str | None = None
+    capture_quality: str | None = None
 
     def send(kind: str, **fields) -> None:
         with lock:
             protocol.write(json.dumps({"type": kind, **fields}, ensure_ascii=False) + "\n")
             protocol.flush()
 
-    def captured(samples: int) -> None:
-        nonlocal last_capture_second
+    def captured(samples: int, format: str | None = None, quality: str | None = None) -> None:
+        nonlocal last_capture_second, capture_format, capture_quality
+        if format is not None:
+            capture_format = format
+        if quality is not None:
+            capture_quality = quality
         seconds = samples // SAMPLE_RATE
         if seconds > last_capture_second:
             last_capture_second = seconds
-            send("status", stage="capturing", captured_seconds=seconds)
+            send("status", stage="capturing", captured_seconds=seconds, capture_format=capture_format, capture_quality=capture_quality)
 
     def detail(label: str, seconds: float | None) -> None:
         # One item inside the model load. The stage line stays as it is and the UI shows this
