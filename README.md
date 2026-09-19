@@ -16,6 +16,10 @@ LiveSub 是一个 Windows 本地字幕工具，可以把视频文件或系统音
 
 界面使用 C# / WPF，字幕管线使用 Python、PyTorch、Transformers、ONNX Runtime 和 llama.cpp。
 
+## 当前限制
+
+实时翻译功能仍在完善中。由于语音识别、断句、时间对齐和本地翻译模型都需要处理时间，实时模式可能出现字幕延迟；连续音频或设备负载较高时也可能出现短暂积压。离线视频模式目前更稳定。
+
 ## 运行环境
 
 当前版本只适配并实测了 **Windows 11 x64 + AMD Radeon RX 9070 XT**，使用 AMD HIP / ROCm GPU 推理。NVIDIA 显卡版本暂不支持。
