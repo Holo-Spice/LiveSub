@@ -1,0 +1,490 @@
+{
+  "baseDownloadSizeBytes": 1719591979,
+  "baseInstalledSizeBytes": 5300000000,
+  "basePeakExtraBytes": 3439183958,
+  "components": [
+    {
+      "id": "ffmpeg",
+      "name": "FFmpeg 9.0.1",
+      "target": "tools/ffmpeg",
+      "requiredPaths": [
+        "tools/ffmpeg/bin/ffmpeg.exe"
+      ],
+      "installedSizeBytes": 321521840,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
+          "downloadSizeBytes": 111253802,
+          "sha256": "FEC81AE03971D9DD4BE3EBE02E263BD2EC1D789483F931BDBA5F5715E65DA2E9",
+          "archive": "zip",
+          "stripComponents": 1
+        }
+      ]
+    },
+    {
+      "id": "rocm-runtime",
+      "name": "ROCm 7.14.1 运行时",
+      "target": "tools/rocm-7.14",
+      "requiredPaths": [
+        "tools/rocm-7.14/bin/amdhip64_7.dll",
+        "tools/rocm-7.14/lib/llvm/bin/amdclang.exe"
+      ],
+      "installedSizeBytes": 14743492512,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://repo.amd.com/rocm/tarball-multi-arch/therock-dist-windows-multiarch-7.14.1.tar.gz",
+          "downloadSizeBytes": 4652962179,
+          "sha256": "BA9A246ED4F922C2D6D6016C1FACC0FB9FFFCB8012706F756B196D538CD36AF9",
+          "archive": "tar.gz",
+          "stripComponents": 1
+        },
+        {
+          "url": "https://repo.amd.com/rocm/tarball-multi-arch/therock-dist-windows-gfx120X-all-7.14.1.tar.gz",
+          "downloadSizeBytes": 2596079970,
+          "sha256": "37A62741452D8CC9C79A6BF0A51BEF86345AEE34515D3D3A185D4A54D04F15C5",
+          "archive": "tar.gz",
+          "stripComponents": 1
+        }
+      ]
+    },
+    {
+      "id": "llama-hip",
+      "name": "llama.cpp b10708 ROCm",
+      "target": "tools/llama.cpp-hip",
+      "requiredPaths": [
+        "tools/llama.cpp-hip/llama-server.exe"
+      ],
+      "installedSizeBytes": 1116913437,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://github.com/ggml-org/llama.cpp/releases/download/b10708/llama-b10708-bin-win-rocm-7.14-x64.zip",
+          "downloadSizeBytes": 242369471,
+          "sha256": "06DF59F99DA7A15398EB3BE55EA6D05C9F7E269318E950886E7A26B012FDF746",
+          "archive": "zip",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "asr-chat_template-jinja",
+      "name": "Qwen3-ASR 1.7B · chat_template.jinja",
+      "target": "models/Qwen3-ASR-1.7B-hf/chat_template.jinja",
+      "requiredPaths": [
+        "models/Qwen3-ASR-1.7B-hf/chat_template.jinja"
+      ],
+      "installedSizeBytes": 1434,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf/resolve/bcd2b5b7f32b480ab5790554cfa8347f246a14f3/chat_template.jinja?download=true",
+          "downloadSizeBytes": 1434,
+          "sha256": "F50E6B694FBF4A683206E37869990D68333FE95D285730F084C838A34B0D98C2",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "asr-config-json",
+      "name": "Qwen3-ASR 1.7B · config.json",
+      "target": "models/Qwen3-ASR-1.7B-hf/config.json",
+      "requiredPaths": [
+        "models/Qwen3-ASR-1.7B-hf/config.json"
+      ],
+      "installedSizeBytes": 2399,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf/resolve/bcd2b5b7f32b480ab5790554cfa8347f246a14f3/config.json?download=true",
+          "downloadSizeBytes": 2399,
+          "sha256": "117AC8E63E2AF7CAE3665E5A632D6EB03F5F384915519CEB6403C15EC6533F63",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "asr-generation_config-json",
+      "name": "Qwen3-ASR 1.7B · generation_config.json",
+      "target": "models/Qwen3-ASR-1.7B-hf/generation_config.json",
+      "requiredPaths": [
+        "models/Qwen3-ASR-1.7B-hf/generation_config.json"
+      ],
+      "installedSizeBytes": 165,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf/resolve/bcd2b5b7f32b480ab5790554cfa8347f246a14f3/generation_config.json?download=true",
+          "downloadSizeBytes": 165,
+          "sha256": "9939FC9388B79BD70757F938B87381E817173D6A6158F5AF6506C0B73E775C3C",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "asr-model-safetensors",
+      "name": "Qwen3-ASR 1.7B · model.safetensors",
+      "target": "models/Qwen3-ASR-1.7B-hf/model.safetensors",
+      "requiredPaths": [
+        "models/Qwen3-ASR-1.7B-hf/model.safetensors"
+      ],
+      "installedSizeBytes": 4076193080,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf/resolve/bcd2b5b7f32b480ab5790554cfa8347f246a14f3/model.safetensors?download=true",
+          "downloadSizeBytes": 4076193080,
+          "sha256": "2DB53C7D81BD9B8CBC6A074E89BE2C968A0D373FB4EE68BB1B1E14F7042DFEE1",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "asr-processor_config-json",
+      "name": "Qwen3-ASR 1.7B · processor_config.json",
+      "target": "models/Qwen3-ASR-1.7B-hf/processor_config.json",
+      "requiredPaths": [
+        "models/Qwen3-ASR-1.7B-hf/processor_config.json"
+      ],
+      "installedSizeBytes": 487,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf/resolve/bcd2b5b7f32b480ab5790554cfa8347f246a14f3/processor_config.json?download=true",
+          "downloadSizeBytes": 487,
+          "sha256": "BC0B230081B44E629DD5B9045B78495615C1831B4B9F4CFFE97BD37E82A6156A",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "asr-tokenizer_config-json",
+      "name": "Qwen3-ASR 1.7B · tokenizer_config.json",
+      "target": "models/Qwen3-ASR-1.7B-hf/tokenizer_config.json",
+      "requiredPaths": [
+        "models/Qwen3-ASR-1.7B-hf/tokenizer_config.json"
+      ],
+      "installedSizeBytes": 998,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf/resolve/bcd2b5b7f32b480ab5790554cfa8347f246a14f3/tokenizer_config.json?download=true",
+          "downloadSizeBytes": 998,
+          "sha256": "945E980986DE2CA7768F3326BFDBB4FBEA3406F972B8AE0BE233089F2B253C11",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "asr-tokenizer-json",
+      "name": "Qwen3-ASR 1.7B · tokenizer.json",
+      "target": "models/Qwen3-ASR-1.7B-hf/tokenizer.json",
+      "requiredPaths": [
+        "models/Qwen3-ASR-1.7B-hf/tokenizer.json"
+      ],
+      "installedSizeBytes": 11429653,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf/resolve/bcd2b5b7f32b480ab5790554cfa8347f246a14f3/tokenizer.json?download=true",
+          "downloadSizeBytes": 11429653,
+          "sha256": "FE1FAD59BE22A41EE293363FCF95FDEDBC7C93F3B49270B1D2E18BD1399A7A05",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "aligner-chat_template-jinja",
+      "name": "Qwen3-ForcedAligner 0.6B · chat_template.jinja",
+      "target": "models/Qwen3-ForcedAligner-0.6B-hf/chat_template.jinja",
+      "requiredPaths": [
+        "models/Qwen3-ForcedAligner-0.6B-hf/chat_template.jinja"
+      ],
+      "installedSizeBytes": 551,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/c07281df297b9905d24a508279258cccf987a064/chat_template.jinja?download=true",
+          "downloadSizeBytes": 551,
+          "sha256": "59B5AE119BDA7C00089BBA5F49AF775791EA67C7AEB7D2B828CDDDA9463121BF",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "aligner-config-json",
+      "name": "Qwen3-ForcedAligner 0.6B · config.json",
+      "target": "models/Qwen3-ForcedAligner-0.6B-hf/config.json",
+      "requiredPaths": [
+        "models/Qwen3-ForcedAligner-0.6B-hf/config.json"
+      ],
+      "installedSizeBytes": 248029,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/c07281df297b9905d24a508279258cccf987a064/config.json?download=true",
+          "downloadSizeBytes": 248029,
+          "sha256": "82AC390B36A8F80C5A0C4E202367DEBD149E5D8C30ABE4CF5EED439101B1C5CE",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "aligner-model-safetensors",
+      "name": "Qwen3-ForcedAligner 0.6B · model.safetensors",
+      "target": "models/Qwen3-ForcedAligner-0.6B-hf/model.safetensors",
+      "requiredPaths": [
+        "models/Qwen3-ForcedAligner-0.6B-hf/model.safetensors"
+      ],
+      "installedSizeBytes": 1835545960,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/c07281df297b9905d24a508279258cccf987a064/model.safetensors?download=true",
+          "downloadSizeBytes": 1835545960,
+          "sha256": "00568245CECA5AF1991D28562A75FE1DDC9BFEB041C27FDA66947EA05C47FB86",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "aligner-processor_config-json",
+      "name": "Qwen3-ForcedAligner 0.6B · processor_config.json",
+      "target": "models/Qwen3-ForcedAligner-0.6B-hf/processor_config.json",
+      "requiredPaths": [
+        "models/Qwen3-ForcedAligner-0.6B-hf/processor_config.json"
+      ],
+      "installedSizeBytes": 487,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/c07281df297b9905d24a508279258cccf987a064/processor_config.json?download=true",
+          "downloadSizeBytes": 487,
+          "sha256": "BC0B230081B44E629DD5B9045B78495615C1831B4B9F4CFFE97BD37E82A6156A",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "aligner-tokenizer_config-json",
+      "name": "Qwen3-ForcedAligner 0.6B · tokenizer_config.json",
+      "target": "models/Qwen3-ForcedAligner-0.6B-hf/tokenizer_config.json",
+      "requiredPaths": [
+        "models/Qwen3-ForcedAligner-0.6B-hf/tokenizer_config.json"
+      ],
+      "installedSizeBytes": 998,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/c07281df297b9905d24a508279258cccf987a064/tokenizer_config.json?download=true",
+          "downloadSizeBytes": 998,
+          "sha256": "945E980986DE2CA7768F3326BFDBB4FBEA3406F972B8AE0BE233089F2B253C11",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "aligner-tokenizer-json",
+      "name": "Qwen3-ForcedAligner 0.6B · tokenizer.json",
+      "target": "models/Qwen3-ForcedAligner-0.6B-hf/tokenizer.json",
+      "requiredPaths": [
+        "models/Qwen3-ForcedAligner-0.6B-hf/tokenizer.json"
+      ],
+      "installedSizeBytes": 11429842,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/c07281df297b9905d24a508279258cccf987a064/tokenizer.json?download=true",
+          "downloadSizeBytes": 11429842,
+          "sha256": "CADFB9CBD9FF8F4E309075EC6A71B063295FF796AFB4B5DBC0FD2873FBB301F2",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "smart-turn-smart-turn-v3-2-cpu-onnx",
+      "name": "Smart Turn v3.2 · smart-turn-v3.2-cpu.onnx",
+      "target": "models/smart-turn-v3.2/smart-turn-v3.2-cpu.onnx",
+      "requiredPaths": [
+        "models/smart-turn-v3.2/smart-turn-v3.2-cpu.onnx"
+      ],
+      "installedSizeBytes": 8679182,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/pipecat-ai/smart-turn-v3/resolve/f766f81d3cfdf7737ac64aad813d91bbfd56bf93/smart-turn-v3.2-cpu.onnx?download=true",
+          "downloadSizeBytes": 8679182,
+          "sha256": "2BB026316B14A660486A75B1733CD3FBAB8C2FD0314DC9AF7BE49F8CCA967E4F",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "sat-config-json",
+      "name": "SaT 3l-sm · config.json",
+      "target": "models/sat-3l-sm/config.json",
+      "requiredPaths": [
+        "models/sat-3l-sm/config.json"
+      ],
+      "installedSizeBytes": 965,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/segment-any-text/sat-3l-sm/resolve/137da054051ad9f1eac42025f758db4ac9f22535/config.json?download=true",
+          "downloadSizeBytes": 965,
+          "sha256": "D61498BC239F773126EE794446CDCAD88822967E0B02AE7BD070F725C98BE791",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "sat-model_optimized-onnx",
+      "name": "SaT 3l-sm · model_optimized.onnx",
+      "target": "models/sat-3l-sm/model_optimized.onnx",
+      "requiredPaths": [
+        "models/sat-3l-sm/model_optimized.onnx"
+      ],
+      "installedSizeBytes": 427756189,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/segment-any-text/sat-3l-sm/resolve/137da054051ad9f1eac42025f758db4ac9f22535/model_optimized.onnx?download=true",
+          "downloadSizeBytes": 427756189,
+          "sha256": "8573277B4DBEA9C5FB1B4CFD8C21E5AA628069AC8258D1342BA664E1B64ADA6D",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "tokenizer-config-json",
+      "name": "XLM-RoBERTa tokenizer · config.json",
+      "target": "models/xlm-roberta-base-tokenizer/config.json",
+      "requiredPaths": [
+        "models/xlm-roberta-base-tokenizer/config.json"
+      ],
+      "installedSizeBytes": 615,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/FacebookAI/xlm-roberta-base/resolve/e73636d4f797dec63c3081bb6ed5c7b0bb3f2089/config.json?download=true",
+          "downloadSizeBytes": 615,
+          "sha256": "D66ED8CD4F2A93B358C245E50736FA389ED4F35C0BAE7AAD0B32ABB20C62B579",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "tokenizer-sentencepiece-bpe-model",
+      "name": "XLM-RoBERTa tokenizer · sentencepiece.bpe.model",
+      "target": "models/xlm-roberta-base-tokenizer/sentencepiece.bpe.model",
+      "requiredPaths": [
+        "models/xlm-roberta-base-tokenizer/sentencepiece.bpe.model"
+      ],
+      "installedSizeBytes": 5069051,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/FacebookAI/xlm-roberta-base/resolve/e73636d4f797dec63c3081bb6ed5c7b0bb3f2089/sentencepiece.bpe.model?download=true",
+          "downloadSizeBytes": 5069051,
+          "sha256": "CFC8146ABE2A0488E9E2A0C56DE7952F7C11AB059ECA145A0A727AFCE0DB2865",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "tokenizer-tokenizer_config-json",
+      "name": "XLM-RoBERTa tokenizer · tokenizer_config.json",
+      "target": "models/xlm-roberta-base-tokenizer/tokenizer_config.json",
+      "requiredPaths": [
+        "models/xlm-roberta-base-tokenizer/tokenizer_config.json"
+      ],
+      "installedSizeBytes": 25,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/FacebookAI/xlm-roberta-base/resolve/e73636d4f797dec63c3081bb6ed5c7b0bb3f2089/tokenizer_config.json?download=true",
+          "downloadSizeBytes": 25,
+          "sha256": "994F46754C5BF4014F1AA92D34B1374319C3A6B3F702105CD5B742BEAECD18CE",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "tokenizer-tokenizer-json",
+      "name": "XLM-RoBERTa tokenizer · tokenizer.json",
+      "target": "models/xlm-roberta-base-tokenizer/tokenizer.json",
+      "requiredPaths": [
+        "models/xlm-roberta-base-tokenizer/tokenizer.json"
+      ],
+      "installedSizeBytes": 9096718,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/FacebookAI/xlm-roberta-base/resolve/e73636d4f797dec63c3081bb6ed5c7b0bb3f2089/tokenizer.json?download=true",
+          "downloadSizeBytes": 9096718,
+          "sha256": "A898EA75433890F6610F4E470B8EBEB0C21DCE5C8DD61F892EB09EB5919D2E2C",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "hymt-7b",
+      "name": "Hy-MT2 7B Q4_K_M",
+      "target": "models/Hy-MT2-7B-Q4_K_M.gguf",
+      "requiredPaths": [
+        "models/Hy-MT2-7B-Q4_K_M.gguf"
+      ],
+      "installedSizeBytes": 4624648896,
+      "optional": false,
+      "sources": [
+        {
+          "url": "https://huggingface.co/tencent/Hy-MT2-7B-GGUF/resolve/ab8472660ac61fac25f1af43fac2599d52a8a775/Hy-MT2-7B-Q4_K_M.gguf?download=true",
+          "downloadSizeBytes": 4624648896,
+          "sha256": "9F96256500F3FC1AB4D64336B58F52A949A95AD7516B0C229476EEF782F9F77B",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    },
+    {
+      "id": "hymt-1-8b",
+      "name": "Hy-MT2 1.8B Q4_K_M",
+      "target": "models/Hy-MT2-1.8B-Q4_K_M.gguf",
+      "requiredPaths": [
+        "models/Hy-MT2-1.8B-Q4_K_M.gguf"
+      ],
+      "installedSizeBytes": 1133080448,
+      "optional": true,
+      "sources": [
+        {
+          "url": "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/a0c709d9fac510f2c807aa3af52872340dc37a4a/Hy-MT2-1.8B-Q4_K_M.gguf?download=true",
+          "downloadSizeBytes": 1133080448,
+          "sha256": "DC5F44FCF1FA496EE7AD725982C0C8C553A4DE00259B53AF84C4B89FB0C06699",
+          "archive": "none",
+          "stripComponents": 0
+        }
+      ]
+    }
+  ]
+}

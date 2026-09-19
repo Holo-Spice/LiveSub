@@ -1,0 +1,15 @@
+﻿<Window x:Class="LiveSub.Launcher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:LiveSub.Launcher"
+        mc:Ignorable="d"
+        Title="LiveSub" Icon="Assets/livesub.ico" Width="1040" Height="760" MinWidth="900" MinHeight="640"
+        Background="{StaticResource PageBrush}" WindowStartupLocation="CenterScreen"
+        Closing="Window_Closing">
+    <Grid>
+        <local:SetupView x:Name="Setup" Visibility="Collapsed" />
+        <local:SubtitleView x:Name="Subtitle" Visibility="Collapsed" />
+    </Grid>
+</Window>

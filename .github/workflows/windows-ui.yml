@@ -1,0 +1,50 @@
+name: Windows UI
+
+on:
+  push:
+    paths:
+      - 'launcher/**'
+      - 'src/subtitle_cli/**'
+      - 'config.toml'
+      - 'requirements.lock'
+      - 'pyproject.toml'
+      - 'testdata/calibration-two-sentences-pts2s.mkv'
+      - '.github/workflows/windows-ui.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build core payload
+        shell: pwsh
+        run: python launcher/build-core.py
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore launcher/Tests/LiveSub.Tests.csproj -r win-x64
+      - name: Build
+        shell: pwsh
+        run: dotnet build launcher/Tests/LiveSub.Tests.csproj -c Release --no-restore
+      - name: Focused checks
+        shell: pwsh
+        run: |
+          $env:LIVESUB_TEST_PYTHON = (python -c 'import sys; print(sys.executable)')
+          & 'launcher/Tests/bin/Release/net10.0-windows/win-x64/LiveSub.Tests.exe'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish EXE and SHA-256
+        shell: pwsh
+        run: ./launcher/publish.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiveSub-Windows-UI
+          path: |
+            launcher/dist/LiveSub.Launcher.exe
+            launcher/dist/LiveSub.Launcher.exe.sha256
+            launcher/dist/THIRD_PARTY_NOTICES.md

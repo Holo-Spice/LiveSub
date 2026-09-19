@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "livesub-cli"
+version = "0.1.0"
+description = "Windows video and system-audio Chinese subtitle CLI"
+requires-python = ">=3.12,<3.13"
+dependencies = ["torch", "transformers>=5.13.0,<5.14", "wtpsplit==2.2.1", "silero-vad==6.2.1", "onnxruntime", "numpy", "httpx", "nagisa"]
+
+[project.scripts]
+subtitle-cli = "subtitle_cli.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,50 @@
+# Local Python and generated metadata
+.venv/
+.dotnet-cli/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Models, media, outputs and installer state
+models/
+outputs/
+testdata/*
+!testdata/calibration-two-sentences-pts2s.mkv
+.setup/
+*.gguf
+*.safetensors
+*.onnx
+*.part
+*.log
+
+# Downloaded third-party runtimes (keep tools/*.py and tools/*.ps1)
+tools/downloads/
+tools/ffmpeg/
+tools/llama.cpp-*/
+tools/rocm-*/
+
+# .NET build and release artifacts
+launcher/bin/
+launcher/obj/
+launcher/Tests/bin/
+launcher/Tests/obj/
+launcher/dist/
+launcher/dist-*/
+launcher/.dotnet-home/
+launcher/Resources/core-package.zip
+**/TestResults/
+*.pdb
+
+# Local packaged binaries
+/LiveSub.Launcher.exe
+/LiveSub.Launcher.exe.sha256
+
+# Editors and operating systems
+.idea/
+.vs/
+.vscode/
+.DS_Store
+Thumbs.db

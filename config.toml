@@ -1,0 +1,12 @@
+[paths]
+ffmpeg = "tools/ffmpeg/bin/ffmpeg.exe"
+llama_server = "tools/llama.cpp-hip/llama-server.exe"
+llama_runtime_bin = "tools/rocm-7.14/bin"
+qwen_asr = "models/Qwen3-ASR-1.7B-hf"
+qwen_aligner = "models/Qwen3-ForcedAligner-0.6B-hf"
+smart_turn = "models/smart-turn-v3.2/smart-turn-v3.2-cpu.onnx"
+sat = "models/sat-3l-sm"
+sat_tokenizer = "models/xlm-roberta-base-tokenizer"
+hymt_1_8b = "models/Hy-MT2-1.8B-Q4_K_M.gguf"
+hymt_7b = "models/Hy-MT2-7B-Q4_K_M.gguf"
+output_dir = "outputs"

@@ -1,0 +1,131 @@
+<UserControl x:Class="LiveSub.Launcher.SetupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="24">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <Border Grid.Column="0" Background="White" CornerRadius="12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="12" Margin="0,0,16,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Bottom">
+                    <TextBlock Text="英语 / 日语 → 简体中文" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock Text="离线视频 · 系统音频 · 外挂 SRT" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="LiveSub" FontSize="24" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Margin="0,0,0,24" />
+                    <TextBlock x:Name="StepOne" Text="01  目录与前提" FontWeight="SemiBold" Margin="0,0,0,18" />
+                    <TextBlock x:Name="StepTwo" Text="02  安装内容" Margin="0,0,0,18" />
+                    <TextBlock x:Name="StepThree" Text="03  安装进度" Margin="0,0,0,18" />
+                    <TextBlock x:Name="StepFour" Text="04  完成" Margin="0,0,0,18" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <StackPanel Grid.Row="0" Margin="0,0,0,16">
+                <TextBlock Text="LiveSub 安装启动器" FontSize="28" FontWeight="Bold" />
+                <TextBlock x:Name="Subtitle" Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0" />
+            </StackPanel>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <Grid>
+                    <Grid x:Name="DirectoryStep">
+                        <StackPanel>
+                            <TextBlock Text="目录与前提" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12" />
+                            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="安装目录" Margin="0,0,0,8" />
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Content="浏览…" Margin="12,0,0,0" Click="Browse_Click" />
+                                        <TextBox x:Name="RootPath" TextChanged="RootPath_Changed" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="运行前提" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                    <ListBox x:Name="PrerequisiteList" BorderThickness="0" IsHitTestVisible="False" />
+                                </StackPanel>
+                            </Border>
+                            <TextBlock x:Name="PrerequisiteError" Foreground="#B12C2C" Margin="0,12,0,0" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid x:Name="ContentsStep" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="安装内容" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12" />
+                            <TextBlock Text="必需组件固定安装，可额外添加轻量翻译模型" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,12" />
+                            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="必需组件（固定安装）" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                    <ListBox x:Name="RequiredList" BorderThickness="0" IsHitTestVisible="False" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <CheckBox Content="🔒 Hy-MT2 7B · 默认必装 · Q4_K_M" IsChecked="True" IsEnabled="False" Margin="0,0,0,12" />
+                                    <CheckBox x:Name="OptionalModel" Content="Hy-MT2 1.8B · 可选追加 · Q4_K_M" Checked="OptionalModel_Changed" Unchecked="OptionalModel_Changed" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock x:Name="DownloadSize" />
+                                    <TextBlock x:Name="InstalledSize" Margin="0,6,0,0" />
+                                    <TextBlock x:Name="SpaceNeeded" Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid x:Name="ProgressStep" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="安装进度" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12" />
+                            <TextBlock Text="按固定顺序下载安装组件" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,12" />
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock x:Name="CurrentComponent" Text="准备安装" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="CurrentStage" Margin="0,8,0,0" />
+                                    <ProgressBar x:Name="ComponentProgress" Height="10" Margin="0,12,0,0" IsIndeterminate="True" />
+                                    <TextBlock x:Name="CurrentSpeed" FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0" />
+                                    <TextBlock x:Name="OverallProgress" Margin="0,16,0,0" />
+                                </StackPanel>
+                            </Border>
+                            <Border x:Name="ErrorCard" Style="{StaticResource Card}" Margin="0,12,0,0" Visibility="Collapsed">
+                                <StackPanel>
+                                    <TextBlock Text="安装未完成" Foreground="#B12C2C" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="InstallError" Margin="0,8,0,0" />
+                                    <TextBlock Text="请确认网络、空间或路径后重新运行启动器续装。" FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid x:Name="DoneStep" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="安装完成" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12" />
+                            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="最小验证" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                    <ListBox x:Name="ProbeList" BorderThickness="0" IsHitTestVisible="False" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="安装位置" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="InstalledPath" Margin="0,6,0,0" />
+                                    <TextBlock x:Name="ConfigNote" Foreground="{StaticResource MutedBrush}" Margin="0,12,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </ScrollViewer>
+
+            <Grid Grid.Row="2" Margin="0,16,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <TextBlock x:Name="FooterNote" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                <Button Grid.Column="1" x:Name="HelpButton" Content="查看使用说明" Margin="0,0,8,0" Visibility="Collapsed" Click="HelpButton_Click" />
+                <Button Grid.Column="2" x:Name="SecondaryButton" Content="重新检查" Margin="0,0,8,0" Click="SecondaryButton_Click" />
+                <Button Grid.Column="3" x:Name="PrimaryButton" Content="下一步" Width="155" Style="{StaticResource PrimaryButton}" Click="PrimaryButton_Click" />
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>
