@@ -158,6 +158,98 @@ try
     catch (System.Text.Json.JsonException) { }
     Console.WriteLine("私有消息：通过");
 
+    // The overlay timing, reproduced with the batch a measured live run actually produced: one
+    // utterance of 19.5s..32.9s written as five lines at the same instant. The overlay must
+    // hand them out over the time they were spoken instead of drawing all five at once.
+    var schedule = new OverlaySchedule();
+    (string, long, long, bool)[] utterance =
+    [
+        ("虽然相识的方式已经彻底变得现代化，用上了最新的应用。", 19522, 23602, false),
+        ("对，就是之后如何建立关系的问题吧。", 23682, 26322, false),
+        ("是的。", 26322, 27042, false),
+        ("之后维持关系的方式，还保留着极其古老传统的规矩呢。", 27282, 32882, false),
+        ("没错。", 31502, 32382, true),
+    ];
+    // The batch is handed over as the utterance finishes, which is what the live run does: the
+    // audio it describes is already fully spoken, so no line is held back for a start that has
+    // passed. Every line still gets shown, in order and for its own reading time.
+    schedule.Push(utterance, 1, elapsedMs: 13932);
+    var seenLines = new List<string>();
+    for (long tick = 1; tick <= 500; tick++)
+    {
+        schedule.Advance(tick);
+        if (schedule.Visible.Length > 0 && (seenLines.Count == 0 || seenLines[^1] != schedule.Visible)) seenLines.Add(schedule.Visible);
+    }
+    Check(seenLines.Count == 5, $"整段五句应依次显示，实际 {seenLines.Count} 句（明细=[{string.Join(" | ", seenLines)}]）");
+    Check(schedule.Shown == 5, $"整段五句应有 5 次交付，实际 {schedule.Shown}");
+    Check(seenLines[0].StartsWith("虽然相识") && seenLines[2] == "是的。", $"顺序应为原句顺序，实际 {string.Join(" / ", seenLines)}");
+    Check(seenLines[^1] == "没错。", $"最后停在整段最后一句，实际 {seenLines[^1]}");
+
+    // The long line stays readable while the short line after it is already waiting: this is the
+    // complaint that started the fix, so it is checked on its own. The batch landed 2.3s after
+    // the utterance began, so the first line is due 2.3s from now and the long line gets its
+    // whole reading time instead of being wiped by the short phrase that follows it.
+    var pacing = new OverlaySchedule();
+    pacing.Push(utterance, 1, elapsedMs: 13932 - 2300);
+    bool firstAdvance = pacing.Advance(77);
+    Check(firstAdvance == false && pacing.Visible.Length == 0, $"音频还没到第一句时不得提前出现（可见={pacing.Visible.Length}）");
+    pacing.Advance(79);
+    Check(pacing.Visible.StartsWith("虽然相识"), $"第一句的音频到了就应出现，实际 {pacing.Visible}");
+    for (long tick = 80; tick <= 119; tick++) pacing.Advance(tick);
+    Check(pacing.Visible.StartsWith("虽然相识"), "长句自身时长未走完前不得被顶掉");
+    pacing.Advance(120);
+    Check(pacing.Visible.StartsWith("虽然相识"), "长句自身时长未走完前不得被顶掉");
+    pacing.Advance(121);
+    Check(pacing.Visible.StartsWith("对，就是"), $"长句读完后应切换到第二句，实际 {pacing.Visible}");
+    for (long tick = 122; tick <= 148; tick++) pacing.Advance(tick);
+    Check(pacing.Visible.StartsWith("对，就是"), "第二句应按自身时长停留");
+    pacing.Advance(149);
+    Check(pacing.Visible.StartsWith("是的"), $"第二句时长用完后应切换，实际 {pacing.Visible}");
+
+    // The last line of an utterance is left on screen through the pause, then cleared.
+    var linger = new OverlaySchedule();
+    linger.Push([("这是整段的最后一句。", 0, 3000, true)], 1);
+    linger.Advance(2);
+    Check(linger.Visible.StartsWith("这是整段"), "最后一句应立即显示");
+    Check(linger.Busy(100), "宽限期内仍算忙碌，不得显示正在等待语音");
+    for (long tick = 3; tick <= 180; tick++) linger.Advance(tick);
+    Check(linger.Visible.StartsWith("这是整段"), "宽限期内最后一句应留在屏幕上");
+    Check(linger.Advance(184), $"宽限期结束时 Advance 应报告清空（可见={linger.Visible.Length}）");
+    Check(linger.Visible.Length == 0, "宽限期结束后字幕应清空");
+    Check(!linger.Busy(190), "清空后应回到等待语音状态");
+
+    // A three-word line must not be wiped by the long line arriving 160ms later with it.
+    var brief = new OverlaySchedule();
+    brief.Push([("可是。", 15938, 16338, false), ("从现在开始才是今天最有趣的部分。", 16642, 19042, true)], 1, elapsedMs: 16538);
+    bool briefFirst = brief.Advance(2);
+    Check(briefFirst == false && brief.Visible == "可是。", $"短句立即出现（清除={briefFirst} 可见='{brief.Visible}'）");
+    for (long tick = 3; tick <= 13; tick++) brief.Advance(tick);
+    Check(brief.Visible == "可是。", "最短停留内的 0.16s 后继不得覆盖当前字幕");
+    brief.Advance(14);
+    Check(brief.Visible.StartsWith("从现在开始"), $"最短停留结束后必须切换，实际 {brief.Visible}");
+
+    // A batch whose first lines are already in the past: they are drawn in order, at once, and
+    // the batch still ends on the line the speaker has just reached.
+    var late = new OverlaySchedule();
+    late.Push([
+        ("屏幕上早就过去的第一句。", 0, 1000, false),
+        ("同样已经过去的一句。", 1500, 2500, false),
+        ("这一句才刚刚说到。", 3000, 4500, true),
+    ], 1, elapsedMs: 4000);
+    Check(late.Advance(2) == false && late.Visible.StartsWith("屏幕上早"), $"过期批次应按原顺序补上，实际 {late.Visible}");
+    for (long tick = 3; tick <= 13; tick++) late.Advance(tick);
+    Check(late.Advance(14) == false && late.Visible.StartsWith("同样已经过去"), $"两句过期后应切到第二句，实际 {late.Visible}");
+    for (long tick = 15; tick <= 41; tick++) late.Advance(tick);
+    Check(late.Advance(42) == false && late.Visible.StartsWith("这一句"), $"最后应停在刚说到的一句，实际 {late.Visible}");
+    Check(late.Shown == 3, $"交付计数应为本批三句，实际 {late.Shown}");
+    // A line whose audio is still ahead waits for it instead of appearing early.
+    var ahead = new OverlaySchedule();
+    ahead.Push([("还没说到的第一句。", 0, 2000, false), ("更后面的第二句。", 4000, 6000, true)], 1, elapsedMs: 1000);
+    Check(ahead.Advance(2) == false && ahead.Visible.StartsWith("还没说到"), "已经过去的一句应立即出现");
+    Check(ahead.Advance(30) == false && ahead.Visible.StartsWith("还没说到"), "后续句子必须等它自己的音频");
+    Check(ahead.Advance(31) == false && ahead.Visible.StartsWith("更后面"), $"到点后应切换到第二句，实际 {ahead.Visible}");
+    Console.WriteLine("悬浮字幕排期：通过");
+
     var fake = Path.Combine(temp, "进程 根");
     Directory.CreateDirectory(Path.Combine(fake, ".venv", "Scripts"));
     Directory.CreateDirectory(Path.Combine(fake, "subtitle_cli"));

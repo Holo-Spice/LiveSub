@@ -48,6 +48,8 @@ public partial class SubtitleView : UserControl
     private double? _loadStepSeconds;
     private bool _startupEnded;
     private int _saved;
+    private long _capturedSeconds;
+    private long _latestMediaMs;
     private bool _busy;
     private bool _stopping;
     private bool _runProgress;
@@ -295,6 +297,8 @@ public partial class SubtitleView : UserControl
         ValidateInput();
         if (!ActionButton.IsEnabled) return;
         _saved = 0;
+        _capturedSeconds = 0;
+        _latestMediaMs = 0;
         _rows.Clear();
         _stage = "";
         _loadStep = null;
@@ -317,7 +321,7 @@ public partial class SubtitleView : UserControl
         SetBusy(true);
         TaskStatus.Text = "正在启动字幕任务";
         TaskDetail.Text = Path.ChangeExtension(AbsoluteOutput(), ".jsonl");
-        if (_mode == "live") Overlay().Show("正在启动，等待语音…");
+        if (_mode == "live") Overlay().ShowHint("正在启动，等待语音…");
         try
         {
             var options = new TaskOptions(_root, _mode,
@@ -393,6 +397,11 @@ public partial class SubtitleView : UserControl
 
     private void FlushMessages()
     {
+        // Live lines are collected first and handed over as one batch. A single utterance is
+        // written as several lines at once, and the overlay must see them together to time them
+        // by their own duration: sending them one at a time is exactly what made a long line
+        // disappear behind the short phrase that followed it.
+        var live = new List<(string Text, long StartMs, long EndMs, bool Keep)>();
         while (_pending.TryDequeue(out var message))
         {
             if (message.Type == "subtitle")
@@ -403,7 +412,8 @@ public partial class SubtitleView : UserControl
                 SavedTitle.Text = $"已保存字幕 · {_saved} 条 · {_mode}";
                 PreviewHint.Visibility = _saved > 200 ? Visibility.Visible : Visibility.Collapsed;
                 PreviewHint.Text = "仅展示最近 200 条，完整结果保存在 SRT";
-                if (_mode == "live") Overlay().Show(message.Text!);
+                if (_mode == "live") live.Add((message.Text!, message.StartMs!.Value, message.EndMs!.Value, false));
+                if (message.EndMs!.Value > _latestMediaMs) _latestMediaMs = message.EndMs!.Value;
             }
             else if (message.Type == "progress" && !_stopping)
             {
@@ -421,6 +431,7 @@ public partial class SubtitleView : UserControl
             {
                 if (message.CapturedSeconds is int seconds)
                 {
+                    _capturedSeconds = seconds;
                     TaskDetail.Text = $"采集时长 {TimeSpan.FromSeconds(seconds):hh\\:mm\\:ss}  |  已保存 {_saved} 条";
                     StartupBar.Visibility = Visibility.Collapsed;
                 }
@@ -435,6 +446,19 @@ public partial class SubtitleView : UserControl
                 }
                 UpdateStartupBar();
             }
+        }
+        if (live.Count > 0)
+        {
+            // Only the last line is allowed to stay after the utterance ends; it is the one the
+            // user keeps looking at while the speaker pauses.
+            live[^1] = live[^1] with { Keep = true };
+            // Where the utterance starts on the audio timeline relative to this moment. The
+            // capture clock is the position the audio has reached; the first line's start says
+            // how far back the utterance began. Handing this to the overlay lets the lines whose
+            // audio the listener has already heard be dropped and the rest be paced by the
+            // speech, instead of dumping the whole utterance at once.
+            long audioMs = Math.Max(_capturedSeconds * 1000, _latestMediaMs);
+            Overlay().Show(live, Math.Max(0, audioMs - live[0].StartMs));
         }
     }
 

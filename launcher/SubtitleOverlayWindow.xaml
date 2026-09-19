@@ -9,22 +9,40 @@
         Width="1180" SizeToContent="Height" MaxHeight="360">
     <Border x:Name="Shell" CornerRadius="10" Background="#D9000000" Padding="0">
         <Border.ContextMenu>
+            <!-- The right click lands on the drag bar, because that is the only part of the
+                 overlay that answers the mouse. Both opacities are sliders so the user can find
+                 the value they like instead of stepping through presets. -->
             <ContextMenu>
                 <MenuItem x:Name="CopyItem" Header="复制当前字幕" Click="Copy_Click" />
                 <MenuItem x:Name="TopItem" Header="取消置顶" Click="Topmost_Click" />
+                <Separator />
+                <MenuItem x:Name="BackgroundItem" StaysOpenOnClick="True">
+                    <MenuItem.Header>
+                        <Slider x:Name="BackgroundSlider" Width="180" Minimum="0" Maximum="100"
+                                TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                ValueChanged="BackgroundSlider_ValueChanged" />
+                    </MenuItem.Header>
+                </MenuItem>
+                <MenuItem x:Name="TextItem" StaysOpenOnClick="True">
+                    <MenuItem.Header>
+                        <Slider x:Name="TextSlider" Width="180" Minimum="0" Maximum="100"
+                                TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                ValueChanged="TextSlider_ValueChanged" />
+                    </MenuItem.Header>
+                </MenuItem>
+                <MenuItem x:Name="ResetItem" Header="恢复默认透明度" Click="ResetOpacity_Click" />
                 <Separator />
                 <MenuItem x:Name="CloseItem" Header="关闭悬浮字幕" Click="Close_Click" />
             </ContextMenu>
         </Border.ContextMenu>
         <DockPanel>
-            <!-- The bar is the only visible control: dragging it moves the window, so the
-                 rest of the overlay stays click-through and never steals a click from the
-                 application the user is actually working in. -->
-            <Border x:Name="DragBar" DockPanel.Dock="Top" Height="18" CornerRadius="10,10,0,0" Background="#26FFFFFF"
-                    MouseLeftButtonDown="DragBar_MouseLeftButtonDown" MouseMove="DragBar_MouseMove"
-                    MouseLeftButtonUp="DragBar_MouseLeftButtonUp" Cursor="SizeAll"
-                    ToolTip="按住拖动可移动位置；右键可关闭悬浮字幕">
-                <TextBlock x:Name="BarHint" Text="LiveSub 悬浮字幕 · 拖动此处移动" FontSize="10" Foreground="#B3FFFFFF"
+            <!-- The bar is the only part of the overlay that answers the mouse. It reports as a
+                 window caption (WM_NCHITTEST in the code-behind), so the window manager drags
+                 the whole strip while the caption area below stays click-through and never
+                 steals a click from the application the user is actually working in. -->
+            <Border x:Name="DragBar" DockPanel.Dock="Top" Height="20" CornerRadius="10,10,0,0" Background="#33FFFFFF"
+                    Cursor="SizeAll" ToolTip="按住拖动可移动位置；右键菜单可调透明度">
+                <TextBlock x:Name="BarHint" Text="LiveSub 悬浮字幕 · 拖动此处移动位置（右键菜单）" FontSize="10" Foreground="#CCFFFFFF"
                            HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <TextBlock x:Name="Caption" Margin="22,10,22,14" FontSize="34" FontWeight="SemiBold"
